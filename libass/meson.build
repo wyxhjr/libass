@@ -37,6 +37,13 @@ src_aarch64 = files(
     'aarch64/blur.S',
     'aarch64/rasterizer.S',
 )
+src_riscv = files(
+    'riscv/asm.S',
+    'riscv/be_blur.S',
+    'riscv/blend_bitmaps.S',
+    'riscv/blur.S',
+    'riscv/rasterizer.S',
+)
 src_fontconfig = files('ass_fontconfig.c')
 src_directwrite = files('ass_directwrite.c')
 src_coretext = files('ass_coretext.c')
@@ -87,6 +94,8 @@ if enable_asm
         asm_sources = src_x86
     elif generic_cpu_family == 'aarch64'
         asm_sources = src_aarch64
+    elif generic_cpu_family == 'riscv'
+        asm_sources = src_riscv
     endif
 
     if asm_is_nasm

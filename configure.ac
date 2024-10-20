@@ -282,6 +282,16 @@ AS_IF([test "x$enable_asm" != xno], [
             BITS=64
             BITTYPE=64
         ],
+        [riscv64-*], [
+            cpu_family="riscv"
+            BITS=64
+            BITTYPE=64
+        ],
+        [riscv32-*], [
+            cpu_family="riscv"
+            BITS=32
+            BITTYPE=32
+        ],
         [ # default
             AC_MSG_NOTICE([Assembly optimizations are not yet supported on this architecture; disabling.])
         ]
@@ -341,6 +351,14 @@ AS_IF([test "x$enable_asm" != xno], [
                 ]
             )
             can_asm=true
+        ],
+        [riscv], [
+            AS_CASE([$host],
+                [*darwin*], [
+                    CCASFLAGS="$CCASFLAGS -DPREFIX"       
+                    ]     
+            can_asm=true
+            )
         ]
     )
 ])
@@ -375,6 +393,7 @@ AM_CONDITIONAL([ASM], [test "x$can_asm" = xtrue])
 AM_CONDITIONAL([X86], [test "x$cpu_family" = xx86])
 AM_CONDITIONAL([X86_64], [test "x$cpu_family" = xx86 && test "x$BITS" = x64])
 AM_CONDITIONAL([AARCH64], [test "x$cpu_family" = xaarch64])
+AM_CONDITIONAL([RISCV], [test "x$cpu_family" = xriscv])
 
 AM_CONDITIONAL([ENABLE_LARGE_TILES], [test "x$enable_large_tiles" = xyes])
 
@@ -401,6 +420,8 @@ AM_COND_IF([ASM], [
     AM_COND_IF([AARCH64], [
         AC_DEFINE(ARCH_AARCH64, 1, [targeting a 64-bit arm host architecture])
     ])
+    AM_COND_IF([RISCV], [
+        AC_DEFINE(ARCH_RISCV, 1, [targeting a 32- or 64-bit arm host architecture])
 ], [
     AC_DEFINE(CONFIG_ASM, 0, [ASM enabled])
 ])

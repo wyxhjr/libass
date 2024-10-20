@@ -47,6 +47,14 @@ libass_libass_internal_la_SOURCES += \
     libass/aarch64/blur.S \
     libass/aarch64/asm.S
 endif
+if RISCV
+libass_libass_internal_la_SOURCES += \
+    libass/riscv/rasterizer.S \
+    libass/riscv/blend_bitmaps.S \
+    libass/riscv/be_blur.S \
+    libass/riscv/blur.S \
+    libass/riscv/asm.S    
+endif
 endif
 
 if FONTCONFIG

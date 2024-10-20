@@ -157,6 +157,10 @@ unsigned ass_get_cpu_flags(unsigned mask)
     flags = ASS_CPU_FLAG_ARM_NEON;
 #endif
 
+#if ARCH_RISCV
+    flags = ASS_CPU_FLAG_RISCV_RVV;
+#endif
+
     return flags & mask;
 }
 
@@ -192,6 +196,11 @@ BitmapEngine ass_bitmap_engine_init(unsigned mask)
         ALL_PROTOTYPES(16, neon)
         ALL_FUNCTIONS(4, 16, neon)
         return engine;
+    }
+#elif ARCH_RISCV
+    if (flags & ASS_CPU_FLAG_RISCV_RVV) {
+        ALL_PROTOTYPES(16, rvv)
+        ALL_FUNCTIONS(4, 16, rvv)
     }
 #endif
 #endif

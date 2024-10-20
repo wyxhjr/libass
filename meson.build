@@ -305,6 +305,12 @@ if not asm_option.disabled()
         if host_system == 'darwin'
             asm_args += '-DPREFIX'
         endif
+    elif generic_cpu_family == 'riscv'
+        enable_asm = true
+        conf.set('ARCH_RISCV', 1)
+        if host_system == 'darwin'
+            asm_args += '-DPREFIX'
+        endif    
     else
         warning(
             'Assembly optimizations are not yet supported for the "@0@" architecture; disabling.'.format(
