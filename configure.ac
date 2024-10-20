@@ -423,9 +423,9 @@ AM_COND_IF([ASM], [
     AM_COND_IF([RISCV], [
         AC_DEFINE(ARCH_RISCV, 1, [targeting a 32- or 64-bit arm host architecture])
     ])
-    , [
+ ]   , [
     AC_DEFINE(CONFIG_ASM, 0, [ASM enabled])
-]])
+])
 
 AM_COND_IF([ENABLE_LARGE_TILES], [
     AC_DEFINE(CONFIG_LARGE_TILES, 1, [use large tiles])
