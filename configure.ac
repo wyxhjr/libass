@@ -286,11 +286,7 @@ AS_IF([test "x$enable_asm" != xno], [
             cpu_family="riscv"
             BITS=64
             BITTYPE=64
-        ],
-        [riscv32-*], [
-            cpu_family="riscv"
-            BITS=32
-            BITTYPE=32
+            ASFLAGS="$ASFLAGS -DARCH_RISCV=1"
         ],
         [ # default
             AC_MSG_NOTICE([Assembly optimizations are not yet supported on this architecture; disabling.])
@@ -352,13 +348,8 @@ AS_IF([test "x$enable_asm" != xno], [
             )
             can_asm=true
         ],
-        [riscv], [
-            AS_CASE([$host],
-                [*darwin*], [
-                    CCASFLAGS="$CCASFLAGS -DPREFIX"       
-                    ]     
+        [riscv], [ 
             can_asm=true
-            )
         ]
     )
 ])
@@ -421,7 +412,8 @@ AM_COND_IF([ASM], [
         AC_DEFINE(ARCH_AARCH64, 1, [targeting a 64-bit arm host architecture])
     ])
     AM_COND_IF([RISCV], [
-        AC_DEFINE(ARCH_RISCV, 1, [targeting a 32- or 64-bit arm host architecture])
+        AC_DEFINE(ARCH_RISCV, 1, [targeting a 64-bit riscv host architecture])
+    ])
 ], [
     AC_DEFINE(CONFIG_ASM, 0, [ASM enabled])
 ])

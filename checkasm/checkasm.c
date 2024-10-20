@@ -76,6 +76,8 @@ static const struct {
     { "AVX2",               "avx2",      ASS_CPU_FLAG_X86_AVX2 },
 #elif ARCH_AARCH64
     { "NEON",               "neon",      ASS_CPU_FLAG_ARM_NEON },
+#elif ARCH_RISCV
+    { "RVV",                "rvv",       ASS_CPU_FLAG_RISCV_RVV },
 #endif
     { 0 }
 };

@@ -195,12 +195,13 @@ BitmapEngine ass_bitmap_engine_init(unsigned mask)
     if (flags & ASS_CPU_FLAG_ARM_NEON) {
         ALL_PROTOTYPES(16, neon)
         ALL_FUNCTIONS(4, 16, neon)
-        return engine;
+        return engine;       
     }
 #elif ARCH_RISCV
     if (flags & ASS_CPU_FLAG_RISCV_RVV) {
         ALL_PROTOTYPES(16, rvv)
         ALL_FUNCTIONS(4, 16, rvv)
+        return engine;
     }
 #endif
 #endif

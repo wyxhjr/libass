@@ -24,45 +24,29 @@
  *                      size_t width, size_t height);
  */
 
-    .section 
-    .data            # 数据段
-edge_mask:                    # 定义边缘掩码标签
-    .byte 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF  # 16 个 0xFF
-    .byte 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00  # 16 个 0x00
-
-
 function add_bitmaps_rvv
-
-    sub a6, 0, a4 
-    andi a6, a6, 15
-    ld a7, edge_mask
-    add a7, a7, a6
-    vmv.s.x v0, a7
-    add a6, a6, a4
-    sub a6, a6, 16
-    sub x1, x1, x6
-    sub x3, x3, x6
+    mv a6, a0
+    mv a7, a2
 0:
-    addi a6, a4, -16 
-    bge x0, a6, 2
+    vsetvli t0, a4, e64, m2, ta, ma 
+    mv a0, a6
+    mv a2, a7
 1:
-    vsetvli t0, a4, e64, m2, ta, ma  
-    vle64.v v0, (a0)                  # 从 a0 加载 16 字节到 v1
+    vle64.v v0, (a0)
     sub a4, a4, t0
-    addi a5, a5, -1
-    vle64.v v2, (a2)                  # 从 a2 加载 16 字节到 v2
-    vminu.vv v0, v0, v2              # v1 = min(v1, v2)，无符号加法可以用 vminu 指令代替
-    vse64.v v0, (a0)                  # 将 v1 存储回地址 x0
-    addi a0, a0, 16                  # 更新 x0
-    addi a2, a2, 16                  # 更新 x2
-    bnew a1, 1b
+    vle64.v v2, (a2)
+    vminu.vv v0, v0, v2
+    vse64.v v0, (a0)
+    addi a0, a0, 16
+    addi a2, a2, 16 
+    bnew a4, 1b
 2:
-    bnew a5, 1b 
+    addi a5, a5, -1
+    add a6, a6, a1
+    add a7, a7, a3
+    bnew a5, 0b 
     ret
-
-
-    
-       
+      
 /*
  * void ass_imul_bitmaps(uint8_t *dst, ptrdiff_t dst_stride,
  *                       const uint8_t *src, ptrdiff_t src_stride,
@@ -70,37 +54,29 @@ function add_bitmaps_rvv
  */
 
 function mul_bitmaps_rvv
-    sub a6, 0, a4 
-    andi a6, a6, 15
-    ld a7, edge_mask
-    add a7, a7, a6
-    vmv.s.x v0, a7
-    add a6, a6, a4
-    sub a6, a6, 16
-    sub x1, x1, x6
-    sub x3, x3, x6
+    mv a6, a0
+    mv a7, a2
 0:
-    addi a6, a4, -16 
-    bge a0, a6, 2
-1:
     vsetvli t0, a4, e64, m2, ta, ma  
-    vle64.v v0, (a0)                  # 从 a0 加载 16 字节到 v1
+    mv a0, a6
+    mv a2, a7
+1:
+    vle64.v v0, (a0)                 
     sub a4, a4, t0
-    addi a5, a5, -1
-    vle64.v v2, (a2)                  # 从 a2 加载 16 字节到 v2
+    vle64.v v2, (a2)                 
     vrsub.vi v2, v2, 255
     vmulvv v0, v0, v2
     vsrl.vi v0, v0, 8
-    addi a0, a0, 16                  # 更新 x0
-    addi a2, a2, 16                  # 更新 x2
-    bnew a1, 1b
+    vse64.v v0, (a0)
+    addi a0, a0, 16                 
+    addi a2, a2, 16                 
+    bnew a4, 1b
 2:
-    bnew a5, 1b 
+    addi a5, a5, -1
+    add a6, a6, a1
+    add a7, a7, a3
+    bnew a5, 0b 
     ret
-
-
-
-
 
  /*
  * void ass_mul_bitmaps(uint8_t *dst, ptrdiff_t dst_stride,
@@ -110,31 +86,30 @@ function mul_bitmaps_rvv
  */
 
 function mul_bitmaps_rvv
-    sub a6, 0, a4 
-    andi a6, a6, 15
-    ld a7, edge_mask
-    add a7, a7, a6
-    vmv.s.x v0, a7
-    add a6, a6, a4
-    sub a6, a6, 16
-    sub x1, x1, x6
-    sub x3, x3, x6
+    mv t3, a0
+    mv t4, a2
+    mv t5, a4
 0:
-    addi a6, a4, -16 
-    bge a0, a6, 2
-1:
     vsetvli t0, a6, e64, m2, ta, ma  
-    vle64.v v0, (a2)                  # 从 a0 加载 16 字节到 v1
+    mv a0, t3
+    mv a2, t4
+    mv a4, t5
+1:
+    vle64.v v0, (a2)                 
     sub a6, a6, t0
-    addi a7, a7, -1
-    vle64.v v2, (a4)                  # 从 a2 加载 16 字节到 v2
+    vle64.v v2, (a4)                 
     vmul.vv v4, v0, v2
     vadd.vx v4, v4, 255
-    vsrl.vi, v4, v4, 8
-    addi a0, a0, 16                  # 更新 x0
-    addi a2, a2, 16                  # 更新 x2
+    vsrl.vi v4, v4, 8
+    vse64.v v4, (a0)
+    addi a0, a0, 16                 
+    addi a2, a2, 16                  
     addi a4, a4, 16 
-    bnew a1, 1b
+    bnew a6, 1b
 2:
-    bnew a7, 1b
+    addi a7, a7, -1
+    add t3, t3, a1
+    add t4, t4, a3
+    add t5, t5, a5
+    bnew a7, 0b 
     ret

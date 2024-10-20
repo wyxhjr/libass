@@ -51,22 +51,20 @@
     \name:
 .endm
 
-        
-        .macro const sym, align=3, relocate=0
-            .if \relocate
-                .pushsection .data.rel.ro
-            .else
-                .pushsection .rodata
-            .endif
-            .align \align
-            \sym:
+.macro const sym, align=3, relocate=0
+    .if \relocate
+        .pushsection .data.rel.ro
+    .else
+        .pushsection .rodata
+    .endif
+    .align \align
+    \sym:
+.endm
 
-            .macro endconst
-                .size  \sym, . - \sym
-                .popsection
-                .purgem endconst
-            .endm
-        .endm
-
+.macro endconst
+    .size  \sym, . - \sym
+    .popsection
+    .purgem endconst
+.endm
 
 #endif /* LIBASS_AARCH64_ASM_S */

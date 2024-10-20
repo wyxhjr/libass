@@ -42,31 +42,46 @@ li t0, val
  * void fill_solid_tile(uint8_t *buf, ptrdiff_t stride, int set);
  */
 
+.irq    size, 16, 32
 .macro fill_solid_tile size
 function fill_solid_tile\size\()_rvv
-    # a0 = buf, a1 = stride, a2 = set (填充值)
-    # 检查填充值是否为 0
-    beq a2, zero, set_zero      # 如果 set == 0，跳转到 set_zero
-    li t0, 1                     # 否则，设定 t0 = 1
-    j fill_tile                  # 跳转到填充逻辑
-
+    beq a2, zero, set_zero      
+    li t0, 1                     
+    j fill_tile                  
 set_zero:
-    li t0, 0                     # 否则，设定 t0 = 0
-
+    li t0, 0                     
 fill_tile:
-    li t1, \tile_size            # t1 = tile_size
-    addi t1, t1, -1              # t1 = tile_size - 1
-
-.fill_loop:
-    # 使用 fill_line 函数填充一行
-    call fill_line               # 调用填充函数
-    add a0, a0, a1              # 更新缓冲区指针 (buf + stride)
-    bnez t1, fill_loop          # 如果 t1 不为零，继续循环
-    call fill_line               # 填充最后一行
-    ret                          # 返回
-
+    li t1, \tile_size            
+    addi t1, t1, -1              
+.fill_loop:   
+    call fill_line               
+    add a0, a0, a1              
+    bnez t1, fill_loop         
+    call fill_line             
+    ret                         
 .endm
 
-# 使用宏进行调用
-fill_solid_tile 16
-fill_solid_tile 32
+
+/*
+ * void merge_tile(uint8_t *buf, ptrdiff_t stride, const uint8_t *tile);
+ */
+
+.irq    w, 16, 32
+function merge_tile\w\()_rvv
+    li      a3, w
+    li      a4, w
+0:
+    addi    a4, a4, -1
+1:
+    vsetvli t0, a3, e64, m2, ta, ma
+    vle64.v v0, (a0)
+    sub     a3, a3, t0
+    vle64.v v0, (a2)
+    vmslt   v0, v2, v0
+    add     a0, a0, a1
+    addi    a2, a2, \w
+    bnew a1, 1b
+2:
+    bnew a4, 1b
+    ret 
+
