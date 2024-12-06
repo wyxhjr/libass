@@ -54,7 +54,46 @@ function shrink_horz16_rvv
     la a5, words_zero
     sub a5, a5, a1
     li a6, 0
-    
+0:
+    mv a7, a3
+    vsetvli t0, a2, e64, m2, ta, ma
+1:
+    slli t4, a3, 4
+    sub t5, a6, t4
+    load_line v1, a1, t5, a4, a5, t6
+    load_line v2, a1, a6, a4, a5, t6
+    add t5, a6, t4
+    load_line v3, a1, t5, a4, a5, t6
+    vmv.v.v v0, v1              
+    vslide1down.vx v0, v1, 0 
+    vslide1down.vx v1, v1, 1 
+    vmv.v.v v4, v2          
+    vslide1down.vv v4, v3, v2
+    vslide1down.vv v5, v2, v3
+    vslideup.vx v2, v0, 14   
+    vslideup.vx v3, v1, 14   
+    vslideup.vx v0, v4, 12   
+    vslideup.vx v1, v5, 12  
+    vadd.vv v0, v0, v5
+    vadd.vv v1, v1, v4
+    vadd.vv v2, v2, v3
+    vadd.vv v0, v0, v1
+    vsrl.vi v0, v0, 1
+    vadd.vv v0, v0, v2
+    vsrl.vi v0, v0, 1
+    vadd.vv v0, v0, v1
+    vsrl.vi v0, v0, 1
+    vadd.vv v0, v0, v2
+    vsrl.vi v0, v0, 1
+    vse16.v v0, (a0)             
+    add a0, a0, 16 
+    sub a7, a7, 1
+    add t4, t4, 16
+    bnez a7, 1b
+    sub a2, a2, 16
+    add a6, a6, t4
+    bnez a2, 0b
+    ret        
 
 
 /*
