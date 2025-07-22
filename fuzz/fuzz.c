@@ -23,7 +23,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
 #include "ass.h"
 #include "ass_types.h"
 
@@ -33,6 +37,18 @@
 #ifndef ASS_FUZZMODE
     #define ASS_FUZZMODE FUZZMODE_STANDALONE
 #endif
+
+// Limit maximal processed size in continuous fuzzing;
+// to be used when the fuzzing setup doesn't expose its own max size control.
+// Has no effect in standalone builds
+#ifdef ASSFUZZ_MAX_LEN
+    #define LEN_IN_RANGE(s) ((s) <= (ASSFUZZ_MAX_LEN))
+#else
+    #define LEN_IN_RANGE(s) true
+#endif
+
+#define STR_(x) #x
+#define STR(x) STR_(x)
 
 // MSAN: will trigger MSAN if any pixel in bitmap not written to (costly)
 #ifndef ASSFUZZ_HASH_WHOLEBITMAP
@@ -164,6 +180,11 @@ struct settings {
     const char *output; // path or NULL for tmp file
 };
 
+#ifdef _WIN32
+#define READ_RET int
+#else
+#define READ_RET ssize_t
+#endif
 
 static ASS_Track *read_track_from_stdin(void)
 {
@@ -172,11 +193,11 @@ static ASS_Track *read_track_from_stdin(void)
     if (!buf)
         goto error;
     size_t s = 0;
-    ssize_t read_b = 0;
+    READ_RET read_b = 0;
     do {
         // AFL++ docs recommend using raw file descriptors
         // to avoid buffering issues with stdin
-        read_b = read(STDIN_FILENO, buf + s, smax - s);
+        read_b = read(fileno(stdin), buf + s, smax - s);
         s += read_b > 0 ? read_b : 0;
         if (s == smax) {
             size_t new_smax = smax > SIZE_MAX / 2 ? SIZE_MAX : smax * 2;
@@ -338,6 +359,10 @@ int main(int argc, char *argv[])
     ssize_t len;
     unsigned char *buf;
 
+#ifdef ASSFUZZ_FONTCONFIG_SYSROOT
+    setenv("FONTCONFIG_SYSROOT", STR(ASSFUZZ_FONTCONFIG_SYSROOT), 1);
+#endif
+
     if (!init()) {
         printf("library init failed!\n");
         return 1;
@@ -347,6 +372,8 @@ int main(int argc, char *argv[])
     buf = __AFL_FUZZ_TESTCASE_BUF;
     while (__AFL_LOOP(100000)) {
         len = __AFL_FUZZ_TESTCASE_LEN;
+        if (!LEN_IN_RANGE(len))
+            continue;
 
         if (!init_renderer()) {
             printf("Failing renderer init, skipping a sample!\n");
@@ -370,13 +397,28 @@ int main(int argc, char *argv[])
     return 0;
 }
 #elif ASS_FUZZMODE == FUZZMODE_LIBFUZZER
+int LLVMFuzzerInitialize(int *argc, char ***argv)
+{
+#ifdef ASSFUZZ_FONTCONFIG_SYSROOT
+    setenv("FONTCONFIG_SYSROOT", STR(ASSFUZZ_FONTCONFIG_SYSROOT), 1);
+#endif
+    return 0;
+}
+
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
+    // OSS Fuzz docs recommend just returning 0 on too large input
+    // libFuzzer docs tell us to use -1 to prevent addition to corpus
+    // BUT HongFuzz' LLVMFuzzerTestOneInput hook can't handle it and
+    // neither does OSS Fuzz convert this in their wrapper, see:
+    // https://github.com/google/oss-fuzz/issues/11983
+    if (!LEN_IN_RANGE(size))
+        return 0;
+
     ASS_Track *track = NULL;
 
-    // All return values but zero are reserved
     if (!init())
-        return 0;
+        exit(1);
 
     track = ass_read_memory(ass_library, (char *)data, size, NULL);
     if (track) {

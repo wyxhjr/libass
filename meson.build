@@ -4,7 +4,7 @@ project(
     license: 'ISC',
     meson_version: '>= 0.64.0',
     default_options: [
-        'c_std=c99',
+        'c_std=gnu99',
         'buildtype=debugoptimized',
         'warning_level=2',
         'default_library=static',
@@ -14,7 +14,7 @@ project(
 
 conf = configuration_data()
 deps = []
-test_deps = []
+png_deps = []
 
 host_system = host_machine.system()
 
@@ -28,7 +28,7 @@ cc_features = []
 if cc.get_id() == 'clang-cl'
     cc_features += '/clang:-fno-math-errno'
 elif cc.get_id() != 'msvc'
-    cc_features += ['-D_POSIX_C_SOURCE=200809L', '-fno-math-errno']
+    cc_features += ['-D_GNU_SOURCE', '-D_XPLATFORM_SOURCE', '-fno-math-errno']
 endif
 
 if cc.get_argument_syntax() == 'gcc'
@@ -42,6 +42,14 @@ if cc.get_argument_syntax() == 'gcc'
         '-Wno-missing-field-initializers',
         '-Wformat-non-iso',
         '-Werror=format-non-iso',
+    ]
+elif cc.get_id() == 'msvc'
+    cc_warnings += [
+        '/we4013', # implicit function definition
+        '/we4775', # non-standard format strings
+        '/we4317', # not enough arguments for format string
+        '/we4473', # same as above
+        '/we4474', # too many arguments for format string
     ]
 endif
 
@@ -120,8 +128,12 @@ if libunibreak_dep.found()
     conf.set('CONFIG_UNIBREAK', 1)
 endif
 
-if get_option('test')
-    test_deps += dependency('libpng', version: '>= 1.2.0')
+png_dep = dependency(
+    'libpng',
+    version: '>= 1.2.0',
+    required: get_option('test').enabled() or get_option('compare').enabled())
+if png_dep.found()
+    png_deps += png_dep
     conf.set('CONFIG_LIBPNG', 1)
 endif
 
@@ -139,7 +151,7 @@ if fontconfig
     font_providers += ['Fontconfig']
 endif
 
-# CoreText
+# Core Text
 coretext = false
 if not get_option('coretext').disabled()
     appservices_dep = dependency(
@@ -162,7 +174,7 @@ if not get_option('coretext').disabled()
         deps += appservices_dep
         conf.set('CONFIG_CORETEXT', 1)
         coretext = true
-        font_providers += ['CoreText']
+        font_providers += ['Core Text']
     else
         coretext_dep = dependency(
             'appleframeworks',
@@ -174,7 +186,7 @@ if not get_option('coretext').disabled()
             deps += coretext_dep
             conf.set('CONFIG_CORETEXT', 1)
             coretext = true
-            font_providers += ['CoreText']
+            font_providers += ['Core Text']
         endif
     endif
 endif
@@ -211,15 +223,16 @@ endif
 
 if get_option('coretext').enabled() and coretext == false
     error(
-        'CoreText support was requested, but it was not found.',
+        'Core Text support was requested, but it was not found.',
     )
 endif
 
 if get_option('require-system-font-provider')
     if font_providers.length() == 0
         error(
-            'Either DirectWrite (on Windows), CoreText (on OSX), or Fontconfig (Linux, ' +
-            'other) is required. If you really want to compile without a system font ' +
+            'At least one of DirectWrite (Windows-exclusive), ' +
+            'Core Text (Apple-exclusive), or Fontconfig is required. ' +
+            'If you really want to compile without a system font ' +
             'provider, set -Drequire-system-font-provider=false',
         )
     endif
@@ -378,11 +391,20 @@ else
     libass_for_tools = libass
 endif
 
-if get_option('test')
+if get_option('test').enabled()
     subdir('test')
 endif
-if get_option('profile')
+if get_option('compare').enabled()
+    subdir('compare')
+endif
+if get_option('profile').enabled()
     subdir('profile')
+endif
+if get_option('fuzz').enabled()
+    subdir('fuzz')
+endif
+if get_option('checkasm').require(enable_asm).allowed()
+    subdir('checkasm')
 endif
 
 # libass.pc

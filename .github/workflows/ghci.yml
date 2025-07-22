@@ -9,7 +9,7 @@ jobs:
   build:
     runs-on: ${{ matrix.os }}
     name: build(${{ matrix.msystem || matrix.docker_image || matrix.os }},
-      ${{ matrix.cc }}${{ matrix.api && ', ' }}${{ matrix.api }})
+      ${{ matrix.cc }}${{ matrix.api && ', ' }}${{ matrix.api }}${{ matrix.jobname_suffix && ', ' }}${{ matrix.jobname_suffix }})
     strategy:
       fail-fast: false
       matrix:
@@ -32,6 +32,11 @@ jobs:
             docker_image: alpine:latest
             shell: '/tmp/docker_shell {0}'
             art_reg_skip: 'font_nonunicode'
+          # ARM linux builds
+          - os: ubuntu-24.04-arm
+            cc: gcc
+          - os: ubuntu-24.04-arm
+            cc: clang
           # Add docker-build with minimum version of dependencies
           - os: ubuntu-latest
             cc: gcc
@@ -47,14 +52,20 @@ jobs:
           # MacOS arm64
           - os: macos-14
             cc: clang
+            omit_asan: no
+          - os: macos-latest
+            cc: clang
+            omit_asan: yes
+            art_binwrap: 'leaks --atExit --'
+            jobname_suffix: leaks
           # Add a Windows build (MinGW-gcc via MSYS2) with no extras
-          - os: windows-2019
+          - os: windows-latest
             msystem: MINGW32
             cc: gcc
             api: desktop
             shell: 'msys2 {0}'
           # Add a best-effort build for UWP apps for Microsoft Store
-          - os: windows-2019
+          - os: windows-latest
             msystem: UCRT64
             cc: gcc
             api: app
@@ -67,6 +78,7 @@ jobs:
 
     env:
       ART_SAMPLES: ext_art-samples
+      ART_BINWRAP: ${{ matrix.art_binwrap }}
 
     steps:
       # Available core count changes on runner type and over time, but GHA
@@ -180,6 +192,11 @@ jobs:
             # This options will instead force an SIGILL, but remove a report being printed
             # see https://reviews.llvm.org/D35085
             uflags="$uflags -fsanitize-undefined-trap-on-error"
+          fi
+
+          # ASAN is incompatible with other tools so some jobs want to opt-out
+          if [ "${{ matrix.omit_asan }}" = "yes" ] ; then
+            aflags=""
           fi
 
           # UBSAN: Alpine and MSys2 doesn't ship the UBSAN library,

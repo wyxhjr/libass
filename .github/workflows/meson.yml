@@ -15,116 +15,166 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - {
-            name: Windows MSVC Release,
-            os: windows-latest,
-            msvc: true,
-            msystem: MINGW64,
-            shell: 'powershell',
-            buildtype: release,
-            args: '-Ddefault_library=static'
-          }
-          - {
-            name: Windows MinGW Release,
-            os: windows-latest,
-            msvc: false,
-            pkgmanager: msys,
-            msystem: MINGW64,
-            shell: 'msys2 {0}',
-            buildtype: debugoptimized,
-            args: ''
-          }
-          - {
-            name: Ubuntu Debug,
-            os: ubuntu-latest,
-            buildtype: debugoptimized,
-            args: ''
-          }
-          - {
-            name: macOS Debug,
-            os: macos-latest,
-            buildtype: debugoptimized,
-            args: ''
-          }
+          - name: Windows (MSVC x64)
+            os: windows-latest
+            arch: x64
+            msvc: true
+            shell: 'pwsh'
+            args: '-Ddefault_library=shared'
+            devenv: |
+              Import-Module "$env:VS\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"
+              Enter-VsDevShell -VsInstallPath $env:VS -SkipAutomaticLocation -DevCmdArguments "-arch=x64 -host_arch=x64"
+
+          - name: Windows (CLANG64)
+            os: windows-latest
+            msystem: CLANG64
+            shell: 'msys2 {0}'
+            args: '-Ddefault_library=static -Db_sanitize=address,undefined'
+
+          - name: Windows (CLANGARM64)
+            os: windows-11-arm
+            msystem: CLANGARM64
+            args: '-Ddefault_library=shared'
+            shell: 'msys2 {0}'
+
+          - name: Windows (CLANGARM64)
+            os: windows-11-arm
+            msystem: CLANGARM64
+            shell: 'msys2 {0}'
+
+          - name: Windows (UCRT64)
+            os: windows-latest
+            msystem: UCRT64
+            shell: 'msys2 {0}'
+            args: '-Ddefault_library=both'
+
+          - name: Windows (MINGW64)
+            os: windows-latest
+            msystem: MINGW64
+            shell: 'msys2 {0}'
+            args: '-Ddefault_library=shared'
+
+          - name: Ubuntu
+            os: ubuntu-latest
+            args: '-Db_sanitize=address,undefined'
+
+          - name: Ubuntu (ARM64)
+            os: ubuntu-24.04-arm
+            args: '-Db_sanitize=address,undefined'
+
+          - name: macOS
+            os: macos-latest
 
     defaults:
       run:
         shell: ${{ matrix.config.shell || 'bash' }}
+
+    env:
+      VS: "C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise"
+      ART_SAMPLES: ${{ github.workspace }}/ext_art-samples
+      SCCACHE_DIR: ${{ github.workspace }}/.sccache
+      SCCACHE_MAXSIZE: 200M
 
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: '0'
 
-      - name: Setup MSys2
-        if: startsWith(matrix.config.os, 'windows')
+      - name: Download test samples
+        uses: actions/checkout@v4
+        with:
+          repository: libass/libass-tests
+          path: ${{ env.ART_SAMPLES }}
+
+      - name: Setup MSYS2
+        if: matrix.config.msystem
         uses: msys2/setup-msys2@v2
         with:
           msystem: ${{ matrix.config.msystem }}
-          update: false
+          pacboy: >-
+            cc
+            fontconfig
+            freetype
+            fribidi
+            harfbuzz
+            libpng
+            meson
+            nasm
+            ninja
 
-      - name: Setup MSVC
-        if: matrix.config.os == 'windows-latest' && matrix.config.msvc == true
-        uses: ilammy/msvc-dev-cmd@v1
+      - name: Get time
+        if: matrix.config.msvc
+        id: get_time
+        run: |
+          "timestamp=$((Get-Date).Ticks)" >> $env:GITHUB_OUTPUT
+
+      - name: Restore cache
+        if: matrix.config.msvc
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: windows-msvc-${{ matrix.config.arch }}-${{ steps.get_time.outputs.timestamp }}
+          restore-keys: windows-msvc-
 
       - name: Install MSVC dependecies with choco
         if: matrix.config.msvc
+        # Install meson through pip to add it to PATH easily
         run: |
-          # for whatever reason choco insist on a reboot if it installs meson
-          choco install ninja nasm python pkgconfiglite
-          python -m pip install --upgrade pip
-          pip install meson
+          python -m pip install meson
+          choco install nasm sccache
 
-      - name: Install more MSVC dependecies with msys
-        if: matrix.config.msvc
-        shell: 'msys2 {0}'
+      - name: Install dependencies
+        if: ${{ !matrix.config.msvc && !matrix.config.msystem}}
         run: |
-            pre="$MINGW_PACKAGE_PREFIX"
-            mkdir pacman-root
-            ln -s /var pacman-root/var
-            pacman -r ./pacman-root --noconfirm -S \
-              $pre-fribidi $pre-freetype $pre-harfbuzz \
-              $pre-fontconfig $pre-libpng
-            echo "PKG_CONFIG_PATH=$(cygpath -w "$PWD/pacman-root/mingw64/lib/pkgconfig")" >> "$GITHUB_ENV"
-
-      - name: Install dependencies (not MSVC)
-        if: ${{ !matrix.config.msvc }}
-        run: |
-          case "${{ matrix.config.pkgmanager || matrix.config.os }}" in
-            msys)
-              pre="$MINGW_PACKAGE_PREFIX"
-              pacman --noconfirm -S \
-                $pre-gcc $pre-meson $pre-ninja nasm \
-                $pre-fribidi $pre-freetype $pre-harfbuzz \
-                $pre-fontconfig $pre-libpng
-              ;;
+          case "${{ matrix.config.os }}" in
             macos-*)
               brew install nasm ninja pkg-config meson
               ;;
             ubuntu-*)
               sudo apt-get update
-              sudo apt-get install ninja-build build-essential pkg-config nasm \
+              sudo apt-get install ninja-build meson build-essential pkg-config nasm \
                 libfreetype-dev libfontconfig-dev libharfbuzz-dev libfribidi-dev \
-                python3-pip
-              # Drop once 24.04 is available in GHA
-              pip3 install  meson
               ;;
           esac
 
       - name: Set up WrapDB
-        if: matrix.config.pkgmanager == 'choco' || matrix.config.os == 'macos-latest'
+        if: matrix.config.msvc || matrix.config.os == 'macos-latest'
         run: |
           meson wrap update-db
 
       - name: Configure
-        run: meson setup build ${{ matrix.config.args }} -Dbuildtype=${{ matrix.config.buildtype }}
+        run: |
+          ${{ matrix.config.devenv }}
+          meson setup build ${{ matrix.config.args }} --wrap-mode=nopromote -Dtest=enabled -Dcompare=enabled -Dprofile=enabled -Dfuzz=enabled '-Dart-samples=${{ env.ART_SAMPLES }}' -Dharfbuzz:icu=disabled
 
       - name: Build
-        run: meson compile -C build
+        run: |
+          ${{ matrix.config.devenv }}
+          meson compile -C build
+
+      - name: Run tests
+        id: run-tests
+        if: matrix.config.skip_tests != 'yes'
+        env:
+          ART_REG_SKIP: ${{ matrix.config.art_reg_skip }}
+        run: |
+          ${{ matrix.config.devenv }}
+          meson test -C build
 
       - name: Dump Meson Debug Info
         if: failure()
         run: cat build/meson-logs/meson-log.txt
+
+      - name: Dump Meson Test Debug Info
+        if: ${{ failure() && steps.run-tests.conclusion == 'failure' }}
+        run: cat build/meson-logs/testlog.txt
+
+      - name: Save Cache
+        uses: actions/cache/save@v4
+        if: always() && matrix.config.msvc
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: windows-msvc-${{ matrix.config.arch }}-${{ steps.get_time.outputs.timestamp }}
 
   build-muon:
     runs-on: ubuntu-latest
@@ -155,7 +205,7 @@ jobs:
       - name: configure
         run: |
           muon version
-          muon setup -Dtest=true build
+          muon setup -Dtest=enabled build
 
       - name: build
         run: |
@@ -195,9 +245,6 @@ jobs:
 
   build-from-tarball:
     runs-on: ubuntu-latest
-    container:
-      # currently GHA’s ubuntu-latest still has a too old meson
-      image: debian:stable
 
     strategy:
       fail-fast: false
@@ -207,8 +254,8 @@ jobs:
     steps:
       - name: install dependencies
         run: |
-          apt-get update #&& sudo apt-get upgrade
-          apt-get install -y --no-install-recommends \
+          sudo apt-get update #&& sudo apt-get upgrade
+          sudo apt-get install -y --no-install-recommends \
                   autoconf automake make libtool \
                   libfontconfig1-dev libfreetype6-dev libfribidi-dev \
                   libharfbuzz-dev nasm ${{ matrix.cc }} \
@@ -229,4 +276,4 @@ jobs:
           cd libass-*/
           meson setup build
           ninja -C build
-          DESTIDR="$PWD/TEST_INSTALL" ninja -C build install
+          DESTDIR="$PWD/TEST_INSTALL" ninja -C build install
